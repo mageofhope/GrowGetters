@@ -1,24 +1,25 @@
 import machine
 import time
-import schedule
+#import schedule                  can't figure out how to get it and all its imports onto rpi
 
 thermometer = machine.ADC(4)
 photoresistor = machine.ADC(26)
 tempInput = machine.ADC(27)
 suntimeInput = machine.ADC(28)
-calibrate = machine.Pin(2, machine.Pin.IN, machine.Pin.PULL_DOWN)
+calibration = machine.Pin(2, machine.Pin.IN, machine.Pin.PULL_DOWN)
 servo1 = machine.PWM(machine.Pin(0))
 servo2 = machine.PWM(machine.Pin(1))
 servo1.freq(50)
 servo2.freq(50)
 
+asleep = False
 suntimeMinutes = 0
 covered = False                   #assume device begins uncovered
 brightnessThreshold = 32768       #what signal strength should mean sunlight? calibrate this
 switchTime = 10                   #how long does it take to roll up/unroll? calibrate this
 
-suntimeCap = None
-tempThreshold = None
+suntimeCap = 240                  #default values 4 hrs
+tempThreshold = 30                #default value 30 C
 
 """
 define asking for parameters (suntimeCap and tempThreshold).
@@ -33,20 +34,23 @@ def calibrate():
 
 def open():
     print("beginning open()")
-    servo1.duty(51)   
-    servo2.duty(51)                                         # 51/1023 * 20ms cycle = 1ms duty = 0 deg
-    sleep(switchTime)
+    servo1.duty_ns(1000)   
+    servo2.duty_ns(1000)                                         
+    time.sleep(switchTime)
 
 def close():
     print("beginning close()")
-    servo1.duty(103)                                         # 103/1023 * 20ms cycle = 2ms duty = 180 deg
-    servo2.duty(103)
-    sleep(switchTime)
+    servo1.duty_ns(2000)   
+    servo2.duty_ns(2000)    
+    time.sleep(switchTime)
 
 def check():
     print("beginning check()")
+    global covered
+    global suntimeMinutes
+    global suntimeCap
     brightness = photoresistor.read_u16()
-    tempRead = thermometer.read_u16() * 3.3 / (65535)
+    tempRead = thermometer.read_u16() * 3.266 / (65535)
     temperature = 27.0 - (tempRead - 0.706)/0.001721
     print("brightness is " + str(brightness))
     print("temperature is " + str(temperature))
@@ -57,7 +61,7 @@ def check():
             suntimeMinutes += 5
         if temperature > tempThreshold:
             print("temperature above threshold, closing")
-            open()
+            close()
             covered = True
     elif covered:
         print("covered")
@@ -69,19 +73,36 @@ def check():
         print("suntime above cap, closing")
         close()
 
+def goodmorning():
+    print("good morning. resetting suntimeMinutes")
+    suntimeMinutes = 0
+    if (covered):
+        open()
+    calibrate()
+    asleep = False
+    
 def bedtime():
     print("bedtime")
     close()
-    sleep(36000)
+    asleep = True
+    time.sleep(35990)                           #to 10 sec before 6AM
 
 #set scheduler events
-schedule.every().day.at("6:00").do(calibrate())
-schedule.every(5).minutes.do.(check())
-schedule.every().day.at("20:00").do(bedtime())
+#schedule.every().day.at("6:00").do(calibrate())
+#schedule.every(5).minutes.do(check())
+#schedule.every().day.at("20:00").do(bedtime())
 
-#main loop
-while true:
-    schedule.run_pending()
-    if (calibrate.value() == 1):                #allows for setting new arguments outside of scheduler using button
+#main loopf
+while True:
+    currTime = time.localtime()
+    print("current hour is " + str(currTime[3]))
+    print("current minute is " + str(currTime[4]))
+    if (currTime[3] == 6 and asleep):           #if hour is 6A
+        goodmorning()
+    if (currTime[3] == 20 and not asleep):      #if hour is 8P
+        bedtime()
+    if (currTime[4] % 5 == 0):                  #every 5 minutes
+        check()
+    if (calibration.value() == 1):                #allows for setting new arguments outside of scheduler using button
         calibrate()
-    sleep(1)
+    time.sleep(1)
