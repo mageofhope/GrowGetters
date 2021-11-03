@@ -1,0 +1,85 @@
+import machine
+import time
+import schedule
+
+thermometer = machine.ADC(4)
+photoresistor = machine.ADC(26)
+tempInput = machine.ADC(27)
+suntimeInput = machine.ADC(28)
+calibrate = machine.Pin(2, machine.Pin.IN, machine.Pin.PULL_DOWN)
+motor1 = machine.PWM(machine.Pin(0))
+motor2 = machine.PWM(machine.Pin(1))
+motor1.freq(50)
+motor2.freq(50)
+
+suntimeMinutes = 0
+covered = False                   #assume device begins uncovered
+brightnessThreshold = 32768       #what signal strength should mean sunlight? calibrate this
+switchTime = 10                   #how long does it take to roll up/unroll? calibrate this
+
+suntimeCap = None
+tempThreshold = None
+
+"""
+define asking for parameters (suntimeCap and tempThreshold).
+depends on how we'll make the physical interface. for now I assume we use two potentiometers
+"""
+def calibrate():
+    print("beginning calibrate()")
+    tempThreshold = int((tempInput.read_u16() * 0.00001525878 * 20) + 20)    #convert 0-65536 to 20-40
+    suntimeCap = int(suntimeInput.read_u16() * 0.00001525878 * 720)          #convert 0-65536 to 0-720
+    print("tempThreshold is " + str(tempThreshold))
+    print("suntimeCap is " + str(suntimeCap))
+
+def open():
+    print("beginning open()")
+    #??? PWM
+    sleep(switchTime)
+
+def close():
+    print("beginning close()")
+    #??? PWM
+    sleep(switchTime)
+
+def check():
+    print("beginning check()")
+    brightness = photoresistor.read_u16()
+    tempRead = thermometer.read_u16() * 3.3 / (65535)
+    temperature = 27.0 - (tempRead - 0.706)/0.001721
+    print("brightness is " + str(brightness))
+    print("temperature is " + str(temperature))
+    if not covered:
+        print("not covered")
+        if brightness > brightnessThreshold:
+            print("incrementing suntimeMinutes")
+            suntimeMinutes += 5
+        if temperature > tempThreshold:
+            print("temperature above threshold, closing")
+            open()
+            covered = True
+    elif covered:
+        print("covered")
+        if temperature <= tempThreshold:
+            print("temperature below threshold, opening")
+            open()
+            covered = False
+    if suntimeMinutes >= suntimeCap and not covered:
+        print("suntime above cap, closing")
+        close()
+
+def bedtime():
+    print("bedtime")
+    close()
+    sleep(36000)
+
+#set scheduler events
+schedule.every().day.at("6:00").do(calibrate())
+schedule.every(5).minutes.do.(check())
+schedule.every().day.at("20:00").do(bedtime())
+
+#main loop
+while true:
+    schedule.run_pending()
+    if (calibrate.value() == 1):                #allows for setting new arguments outside of scheduler using button
+        calibrate()
+    sleep(1)
