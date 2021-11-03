@@ -7,10 +7,10 @@ photoresistor = machine.ADC(26)
 tempInput = machine.ADC(27)
 suntimeInput = machine.ADC(28)
 calibrate = machine.Pin(2, machine.Pin.IN, machine.Pin.PULL_DOWN)
-motor1 = machine.PWM(machine.Pin(0))
-motor2 = machine.PWM(machine.Pin(1))
-motor1.freq(50)
-motor2.freq(50)
+servo1 = machine.PWM(machine.Pin(0))
+servo2 = machine.PWM(machine.Pin(1))
+servo1.freq(50)
+servo2.freq(50)
 
 suntimeMinutes = 0
 covered = False                   #assume device begins uncovered
@@ -33,12 +33,14 @@ def calibrate():
 
 def open():
     print("beginning open()")
-    #??? PWM
+    servo1.duty(51)   
+    servo2.duty(51)                                         # 51/1023 * 20ms cycle = 1ms duty = 0 deg
     sleep(switchTime)
 
 def close():
     print("beginning close()")
-    #??? PWM
+    servo1.duty(103)                                         # 103/1023 * 20ms cycle = 2ms duty = 180 deg
+    servo2.duty(103)
     sleep(switchTime)
 
 def check():
